@@ -1,7 +1,9 @@
 #include <opencv2/opencv.hpp>
+#include <opencv2/nonfree/nonfree.hpp>
 #include <iostream>
 #include <vector>
 #include <string>
+#include <fstream>
 
 using namespace std;
 using namespace cv;
@@ -21,13 +23,13 @@ public:
 	YawAngleEstimator(int AngleNum = 5, FeatureType Feature = USE_BRISK);
 
 	//To get template pictures from one folder,
-	virtual void init(string PicFilename);
+	virtual void init(const string PicFilename);
 
 	//Construct Yaw-Template Index from assigned feature
 	virtual void train();
 
 	//Estimate head pose from last few frames 
-	virtual void Estimate(int FrameNum = 3);
+	virtual void Estimate(Mat& CurrentFrame,int FrameNum = 3);
 
 private:
 	float				 YawAngle;

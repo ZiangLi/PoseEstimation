@@ -1,0 +1,5 @@
+C:\Users\Ziang\Documents\Visual Studio 2013\Projects\YawAngleMatching\YawAngleMatching\temp\1.jpg	(184.82823334204,129.118541033435,171.209310885258,226.675808149993)
+C:\Users\Ziang\Documents\Visual Studio 2013\Projects\YawAngleMatching\YawAngleMatching\temp\2.jpg	(196.501595447853,123.282674772036,168.290970358805,237.375575288813)
+C:\Users\Ziang\Documents\Visual Studio 2013\Projects\YawAngleMatching\YawAngleMatching\temp\3.jpg	(201.365496325275,119.392097264438,175.100431587196,248.075614024803)
+C:\Users\Ziang\Documents\Visual Studio 2013\Projects\YawAngleMatching\YawAngleMatching\temp\4.jpg	(177.045991938165,118.419452887538,176.073211762681,246.129917875249)
+C:\Users\Ziang\Documents\Visual Studio 2013\Projects\YawAngleMatching\YawAngleMatching\temp\5.jpg	(173.154871236227,119.392097264438,178.991552289134,247.102833849318)

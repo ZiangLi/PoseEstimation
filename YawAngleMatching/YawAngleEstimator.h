@@ -33,10 +33,7 @@ public:
 	virtual void train();
 
 	//Estimate head pose from last few frames 
-	virtual void Estimate(Mat& CurrentFrame);
-
-	//Output head pose Yaw-angle
-	virtual float outputAngle();
+	virtual void Estimate(Mat& CurrentFrame, float& CurrentAngle);
 
 	//Release Memory Manually
 	virtual void release();

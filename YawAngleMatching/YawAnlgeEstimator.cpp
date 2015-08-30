@@ -127,9 +127,13 @@ void YawAngleEstimator::train()
 		YawIndex[i].build(descriptors[i], flann::LshIndexParams(12, 20, 2), cvflann::FLANN_DIST_HAMMING);
 }
 
-void YawAngleEstimator::Estimate(Mat& CurrentFrame)
+void YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
 {
-	vector<Mat> MatchingImg(1, CurrentFrame);
+	Mat TempFrame = CurrentFrame.clone();
+	if (TempFrame.channels == 3)
+		cvtColor(TempFrame, TempFrame, CV_BGR2GRAY);
+
+	vector<Mat> MatchingImg(1, TempFrame);
 	vector<vector<KeyPoint>> CurrentKp;
 	vector<Mat> CurrentDescriptors;
 	float* CurrentVote = new float[AngleNum];
@@ -172,12 +176,7 @@ void YawAngleEstimator::Estimate(Mat& CurrentFrame)
 				}
 			}
 	}
-
-}
-
-float YawAngleEstimator::outputAngle()
-{
-	return Angle[AngleIndex];
+	CurrentAngle = Angle[AngleIndex];
 }
 
 void YawAngleEstimator::release()

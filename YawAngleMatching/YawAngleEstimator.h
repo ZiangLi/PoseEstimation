@@ -2,6 +2,7 @@
 #include <opencv2/nonfree/nonfree.hpp>
 #include <iostream>
 #include <vector>
+#include <deque>
 #include <string>
 #include <fstream>
 
@@ -20,22 +21,36 @@ class YawAngleEstimator
 {
 public:
 	//Default construct function
-	YawAngleEstimator(int AngleNum = 5, FeatureType Feature = USE_BRISK);
+	YawAngleEstimator(int FrameNum = 3, FeatureType Feature = USE_BRISK);
 
-	//To get template pictures from one folder,
-	virtual void init(const string PicFilename);
+	//Default destruct function
+	~YawAngleEstimator();
+
+	//To get template pictures from one folder
+	virtual void init(const string PicFilename, int AngleNum = 5);
 
 	//Construct Yaw-Template Index from assigned feature
 	virtual void train();
 
 	//Estimate head pose from last few frames 
-	virtual void Estimate(Mat& CurrentFrame,int FrameNum = 3);
+	virtual void Estimate(Mat& CurrentFrame);
+
+	//Output head pose Yaw-angle
+	virtual float outputAngle();
+
+	//Release Memory Manually
+	virtual void release();
 
 private:
-	float				 YawAngle;
+
+	float*				 VoteWeight;
+	float*				 FinalVote;
 	int					 AngleNum;
+	int					 FrameNum;
+	int                  AngleIndex;
 	vector<Mat>			 YawTemplate;
-	vector<Mat>		     Frames;
+	vector<float>        Angle;
+	deque<float*>		 FramesVote;
 	vector<flann::Index> YawIndex;
 	FeatureType Feature;
 };

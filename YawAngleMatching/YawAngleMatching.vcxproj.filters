@@ -24,6 +24,27 @@
     <ClInclude Include="cxlibface.hpp">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="tracker\common.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="tracker\Consensus.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="tracker\FaceTracker.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="tracker\Fusion.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="tracker\gui.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="tracker\Matcher.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="tracker\Tracker.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="YawAnlgeEstimator.cpp">

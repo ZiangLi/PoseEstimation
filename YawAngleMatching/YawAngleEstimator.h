@@ -42,6 +42,7 @@ public:
 
 	void Indexmatch(Mat& CurrentDescriptors, float* CurrentVote);
 
+
 private:
 
 	float*				 VoteWeight;
@@ -57,3 +58,11 @@ private:
 	vector<BFMatcher>    matchers;
 	FeatureType Feature;
 };
+
+//TODO
+//flannIndex 训练
+//无输入时队列弹出
+//vote 相同时的策略
+//平滑结果
+//landmark 正负号
+//深度信息，其他特征

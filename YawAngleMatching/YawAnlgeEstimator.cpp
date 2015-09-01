@@ -1,5 +1,7 @@
 #include "YawAngleEstimator.h"
 
+ofstream fss("Results.txt");
+
 YawAngleEstimator::YawAngleEstimator(int _FrameNum, FeatureType _Feature, bool _useIndex) 
 	:FrameNum(_FrameNum), Feature(_Feature), useIndex(_useIndex)
 {
@@ -74,7 +76,6 @@ void YawAngleEstimator::init(const string PicFilename,int _AngleNum )
 		//imshow(buffer, dstTemp);
 		waitKey(1000);
 		cvtColor(dstTemp, dstTemp, CV_BGR2GRAY);
-		imshow(buffer, dstTemp);
 
 		waitKey(1);
 		YawTemplate.push_back(dstTemp);
@@ -103,9 +104,11 @@ void featureExtract(const vector<Mat>& ImgTmp, vector<vector<KeyPoint>>& kp,
 	{
 	case USE_BRISK:
 	{
-		BRISK* detector = new BRISK();
-		descriptImg(ImgTmp, detector, detector, kp, descriptors);
+		BRISK* detector = new BRISK(30);
+		BRISK* extractor = new BRISK();
+		descriptImg(ImgTmp, detector, extractor, kp, descriptors);
 		delete detector;
+		delete extractor;
 	}
 	break;
 	case USE_SIFT:
@@ -159,6 +162,9 @@ void YawAngleEstimator::train()
 		//build BFMathers
 		for (int i = 0; i < AngleNum; i++)
 		{
+			//record
+			fss<<"\nKeypoints number of template "<< i <<" is "<< descriptors[i].rows << endl;
+
 			BFMatcher tempMatcher;
 			vector<Mat> train_des(1, descriptors[i]);
 			tempMatcher.add(train_des);
@@ -201,7 +207,7 @@ void YawAngleEstimator::BFmatch(Mat& CurrentDescriptors, float* CurrentVote)
 		{
 			//printf("The Nearest  Two Distance of point %d for template %d is: ", j, i);
 			//cout << matches[j][0].distance <<","<< matches[j][1].distance << endl;
-			if (matches[j][0].distance < 0.8*matches[j][1].distance)
+			if (matches[j][0].distance<380 && matches[j][0].distance < 0.85*matches[j][1].distance)
 				++CurrentVote[i];
 		}
 
@@ -226,7 +232,11 @@ bool YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
 	//Extract current feature
 	featureExtract(MatchingImg, CurrentKp, CurrentDescriptors, Feature);
 
-	printf("Estimate::The Number of keypoints is:%d\n ", CurrentDescriptors[0].rows);
+	//draw Keypoints on frame and record
+	drawKeypoints(CurrentFrame, CurrentKp[0], CurrentFrame);
+	fss <<"\nKeypoints number of CurrentFrame is "<<CurrentDescriptors[0].rows<<endl;
+
+		printf("Estimate::The Number of keypoints is:%d\n", CurrentDescriptors[0].rows);
 
 	if (useIndex)
 		Indexmatch(CurrentDescriptors[0], CurrentVote);
@@ -257,7 +267,12 @@ bool YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
 		}
 
 		for (int i = 0; i < AngleNum; i++)
+		{
 			cout << "Final Vote for template " << i << " is " << FinalVote[i] << endl;
+			
+			//record
+			fss << "Final Vote for template " << i << " is " << FinalVote[i] << endl;
+		}
 	}
 	if (AngleIndex == -1)
 	{
@@ -271,8 +286,6 @@ bool YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
 		return true;
 	}
 }
-//无输入时队列弹出
-//vote 相同时的策略
 
 void YawAngleEstimator::release()
 {

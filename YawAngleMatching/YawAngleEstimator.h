@@ -21,7 +21,7 @@ class YawAngleEstimator
 {
 public:
 	//Default construct function
-	YawAngleEstimator(int FrameNum = 3, FeatureType Feature = USE_BRISK);
+	YawAngleEstimator(int FrameNum = 3, FeatureType Feature = USE_BRISK, bool useIndex = true);
 
 	//Default destruct function
 	~YawAngleEstimator();
@@ -38,10 +38,15 @@ public:
 	//Release Memory Manually
 	virtual void release();
 
+	void BFmatch(Mat& CurrentDescriptors, float* CurrentVote);
+
+	void Indexmatch(Mat& CurrentDescriptors, float* CurrentVote);
+
 private:
 
 	float*				 VoteWeight;
 	float*				 FinalVote;
+	bool				 useIndex;
 	int					 AngleNum;
 	int					 FrameNum;
 	int                  AngleIndex;
@@ -49,5 +54,6 @@ private:
 	vector<float>        Angle;
 	deque<float*>		 FramesVote;
 	vector<flann::Index> YawIndex;
+	vector<BFMatcher>    matchers;
 	FeatureType Feature;
 };

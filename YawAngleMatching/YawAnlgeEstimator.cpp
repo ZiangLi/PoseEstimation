@@ -1,6 +1,7 @@
 #include "YawAngleEstimator.h"
 
-YawAngleEstimator::YawAngleEstimator(int _FrameNum , FeatureType _Feature ) :FrameNum(_FrameNum),Feature(_Feature)
+YawAngleEstimator::YawAngleEstimator(int _FrameNum, FeatureType _Feature, bool _useIndex) 
+	:FrameNum(_FrameNum), Feature(_Feature), useIndex(_useIndex)
 {
 	VoteWeight = new float[_FrameNum];
 	float sum=0.0;
@@ -36,6 +37,7 @@ void YawAngleEstimator::init(const string PicFilename,int _AngleNum )
 	YawTemplate.reserve(_AngleNum);
 	Angle.reserve(_AngleNum);
 	YawIndex.reserve(_AngleNum);
+	matchers.reserve(_AngleNum);
 
 	ifstream fs;
 	for (int i = 0; i < 5; i++)
@@ -63,15 +65,18 @@ void YawAngleEstimator::init(const string PicFilename,int _AngleNum )
 		ROI.height = coordinate[3];
 
 		Mat srcTemp = imread(PicFilename + "\\" + buffer + ".jpg");
-		Mat dstTemp = srcTemp(ROI);
+		Mat dstTemp = srcTemp(ROI).clone();
 		if (!dstTemp.data)
 		{
 			printf("Error for read!");
 			return;
 		}
-		imshow(buffer, dstTemp);
+		//imshow(buffer, dstTemp);
 		waitKey(1000);
+		cvtColor(dstTemp, dstTemp, CV_BGR2GRAY);
+		imshow(buffer, dstTemp);
 
+		waitKey(1);
 		YawTemplate.push_back(dstTemp);
 	}
 }
@@ -132,22 +137,79 @@ void YawAngleEstimator::train()
 	vector<Mat> descriptors(AngleNum,Mat());
 	featureExtract(YawTemplate, kp, descriptors, Feature);
 
-	//build Index with Lsh and Hamming distance
-	for (int i = 0; i < AngleNum; i++)
+	if (useIndex)
 	{
-		flann::Index tempIndex;
-		if (Feature == USE_SIFT)
+		//build Index with Lsh and Hamming distance
+		for (int i = 0; i < AngleNum; i++)
 		{
-			tempIndex.build(descriptors, flann::KDTreeIndexParams(4), cvflann::FLANN_DIST_L2);
+			flann::Index tempIndex;
+			if (Feature == USE_SIFT)
+			{
+				tempIndex.build(descriptors[i], flann::KDTreeIndexParams(4), cvflann::FLANN_DIST_L2);
+			}
+			else
+			{
+				tempIndex.build(descriptors[i], flann::LshIndexParams(12, 20, 2), cvflann::FLANN_DIST_HAMMING);
+			}
+			YawIndex.push_back(tempIndex);
 		}
-		else
+	}
+	else
+	{
+		//build BFMathers
+		for (int i = 0; i < AngleNum; i++)
 		{
-			tempIndex.build(descriptors[i], flann::LshIndexParams(12, 20, 2), cvflann::FLANN_DIST_HAMMING);
+			BFMatcher tempMatcher;
+			vector<Mat> train_des(1, descriptors[i]);
+			tempMatcher.add(train_des);
+			tempMatcher.train();
+			matchers.push_back(tempMatcher);
 		}
-		YawIndex.push_back(tempIndex);
 	}
 }
 
+void YawAngleEstimator::Indexmatch(Mat& CurrentDescriptors, float* CurrentVote)
+{
+	//Lowe's Algorithm to caculate vote for each angletemplate
+	for (int i = 4; i < AngleNum; i++)
+	{
+		//rows:numbers of keypoints
+		Mat matchIndex(CurrentDescriptors.rows, 2, CV_32SC1), matchDistance(CurrentDescriptors.rows, 2, CV_32FC1);
+
+		CurrentVote[i] = 0;
+
+		//cout << CurrentDescriptors[0] << endl;
+
+		YawIndex[i].knnSearch(CurrentDescriptors, matchIndex, matchDistance, 2, flann::SearchParams());
+		for (int j = 0; j < matchDistance.rows; j++)
+		{
+			if (matchDistance.at<float>(j, 0) < 0.6*matchDistance.at<float>(j, 1))
+				++CurrentVote[i];
+		}
+	}
+}
+void YawAngleEstimator::BFmatch(Mat& CurrentDescriptors, float* CurrentVote)
+{
+	for (int i = 0; i < AngleNum; i++)
+	{
+		vector<vector<DMatch>>   matches;
+		matchers[i].knnMatch(CurrentDescriptors, matches, 2);
+		CurrentVote[i] = 0;
+
+		vector<DMatch> goodMatches;
+		for (int j = 0; j < matches.size(); j++)
+		{
+			//printf("The Nearest  Two Distance of point %d for template %d is: ", j, i);
+			//cout << matches[j][0].distance <<","<< matches[j][1].distance << endl;
+			if (matches[j][0].distance < 0.8*matches[j][1].distance)
+				++CurrentVote[i];
+		}
+
+		//printf("The Current Number of Vote for template %d is %f\n", i, CurrentVote[i]);
+	}
+}
+
+//TODO:FlannIndexEstimate Debug
 bool YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
 {
 	printf("YawAngleEstimator:estimate\n");
@@ -164,21 +226,13 @@ bool YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
 	//Extract current feature
 	featureExtract(MatchingImg, CurrentKp, CurrentDescriptors, Feature);
 
-	Mat matchIndex(CurrentDescriptors[0].rows, 2, CV_32SC1), matchDistance(CurrentDescriptors[0].rows, 2, CV_32FC1);
+	printf("Estimate::The Number of keypoints is:%d\n ", CurrentDescriptors[0].rows);
 
-	//Lowe's Algorithm to caculate vote for each angletemplate
-	for (int i = 0; i < AngleNum; i++)
-	{
-		CurrentVote[i] = 0;
-		cout << CurrentDescriptors[0] << endl;
-		YawIndex[i].knnSearch(CurrentDescriptors[0], matchIndex, matchDistance, 2,flann::SearchParams());
-		for (int j = 0; j < matchDistance.rows; j++)
-		{
-			if (matchDistance.at<float>(j,0) < 0.6*matchDistance.at<float>(j,1))
-				++CurrentVote[i];
-		}
-	}
-	
+	if (useIndex)
+		Indexmatch(CurrentDescriptors[0], CurrentVote);
+	else
+		BFmatch(CurrentDescriptors[0], CurrentVote);
+
 	if (FramesVote.size() < FrameNum)
 		FramesVote.push_back(CurrentVote);
 	else//caculate FinalVote for each angle from last frame's vote
@@ -189,25 +243,36 @@ bool YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
 		delete ptrTemp;
 
 		for (int i = 0; i < FrameNum; i++)
+		{
 			for (int j = 0; j < AngleNum; j++)
 			{
 				FinalVote[j] = FramesVote[i][j] * VoteWeight[i];
-				if (FinalVote[j]>maxVote)
+				
+				if (FinalVote[j] > maxVote)
 				{
 					maxVote = FinalVote[j];
 					AngleIndex = j;
 				}
 			}
+		}
+
+		for (int i = 0; i < AngleNum; i++)
+			cout << "Final Vote for template " << i << " is " << FinalVote[i] << endl;
 	}
-	if (AngleIndex == -1) 
+	if (AngleIndex == -1)
+	{
+		printf("Cannot estimate right now!\n");
 		return false;
+	}
 	else
 	{
 		CurrentAngle = Angle[AngleIndex];
-		printf("The max vote of angle is: %d\n", maxVote);
+		printf("The max vote of angle is: %f\n", maxVote);
 		return true;
 	}
 }
+//无输入时队列弹出
+//vote 相同时的策略
 
 void YawAngleEstimator::release()
 {

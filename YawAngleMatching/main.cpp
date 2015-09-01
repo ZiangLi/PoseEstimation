@@ -6,9 +6,11 @@ using namespace std;
 using namespace cv;
 
 const int   MAX_face_numBER = 20;
+Rect FaceRect;
+#define CAMERA
 
 //convert self-defined RectItem to regular Rect
-void selectCenterRect(Mat& Frame,CvRectItem* FaceRegion, int num, Rect& FD)
+void selectCenterRect(Mat& Frame, CvRectItem* FaceRegion, int num, Rect& FD)
 {
 	int centerX = Frame.cols / 2;
 	int centerY = Frame.rows / 2;
@@ -16,7 +18,7 @@ void selectCenterRect(Mat& Frame,CvRectItem* FaceRegion, int num, Rect& FD)
 	int index = num + 1;
 	for (int i = 0; i < num; i++)
 	{
-		
+
 		int distance = abs(FaceRegion[i].rc.x - centerX) + abs(FaceRegion[i].rc.y - centerX);
 		if (distance < minDistance)
 		{
@@ -32,7 +34,7 @@ void faceDetect(Mat& Frame, Mat& faceROI)
 {
 	CxlibFaceDetector*		 face_detector = new CxlibFaceDetector();
 	CvRectItem				 FaceRegion[MAX_face_numBER];
-	Rect                     FaceRect;
+	//Rect                     FaceRect;
 	face_detector->init();
 
 	faceROI = Mat();
@@ -48,43 +50,51 @@ void faceDetect(Mat& Frame, Mat& faceROI)
 	faceROI = Frame(FaceRect);
 }
 
-int main()
+int  main()
 {
+
+#ifdef CAMERA
 	VideoCapture cap;
 	cap.open(0);
-	Mat frame,faceROI;
-	YawAngleEstimator* estimator = new YawAngleEstimator();
-	float YawAngle=0.0f;
+#endif
+
+	YawAngleEstimator* estimator = new YawAngleEstimator(3,USE_SIFT,false);
+	float YawAngle = 0.0f;
 	estimator->init("pic_base\\ziang_0829");
 	estimator->train();
-	int count = 0;
+
 	while (1)
 	{
+		Mat frame, faceROI;
+#ifdef CAMERA
 		cap >> frame;
+#endif
+
+#ifndef CAMERA
+		frame = imread("1.jpeg");
+		faceROI = frame;
+#endif
+
 		faceDetect(frame, faceROI);
-		if (count < 300)
+
+
+		//imwrite("origin.jpg", frame);
+		//imwrite("ROI.jpg", faceROI);
+
+		if (faceROI.data)
 		{
-			imshow("FaceRegion", frame);
+			char buffer[32];
+			estimator->Estimate(faceROI, YawAngle);
+			sprintf(buffer, "Face YawAngle %d", (int)YawAngle);
+			putText(frame, buffer, FaceRect.tl()-Point(10,5), CV_FONT_HERSHEY_COMPLEX,0.6, Scalar(255, 0, 0));
 		}
-		else
-		{
-			faceDetect(frame, faceROI);
+		imshow("FaceRegion", frame);
 
-			imwrite("origin.jpg", frame);
-			imwrite("ROI.jpg", faceROI);
-
-			if (faceROI.data)
-			{
-				estimator->Estimate(faceROI, YawAngle);
-
-				printf("Face YawAngle is %f бу", YawAngle);
-			}
-			imshow("FaceRegion", frame);
-		}
 		waitKey(1);
-		count++;
+
 	}
+	estimator->release();
 	delete estimator;
-	
+
 	return 0;
 }

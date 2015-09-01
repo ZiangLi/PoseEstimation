@@ -1,6 +1,6 @@
 #include "YawAngleEstimator.h"
 
-YawAngleEstimator::YawAngleEstimator(int _FrameNum = 3, FeatureType _Feature = USE_BRISK) :FrameNum(_FrameNum),Feature(_Feature)
+YawAngleEstimator::YawAngleEstimator(int _FrameNum , FeatureType _Feature ) :FrameNum(_FrameNum),Feature(_Feature)
 {
 	VoteWeight = new float[_FrameNum];
 	float sum=0.0;
@@ -12,6 +12,7 @@ YawAngleEstimator::YawAngleEstimator(int _FrameNum = 3, FeatureType _Feature = U
 	{
 		VoteWeight[i-1] = (float(i)/ sum);
 	}
+	AngleIndex = -1;
 }
 YawAngleEstimator::~YawAngleEstimator()
 {
@@ -23,8 +24,10 @@ YawAngleEstimator::~YawAngleEstimator()
 	}
 }
 
-void YawAngleEstimator::init(const string PicFilename,int _AngleNum = 5)
+void YawAngleEstimator::init(const string PicFilename,int _AngleNum )
 {
+	printf("YawAngleEstimator:init\n");
+
 	AngleNum = _AngleNum;
 	FinalVote = new float[_AngleNum];
 	for (int i = 0; i < _AngleNum; i++)
@@ -32,12 +35,14 @@ void YawAngleEstimator::init(const string PicFilename,int _AngleNum = 5)
 
 	YawTemplate.reserve(_AngleNum);
 	Angle.reserve(_AngleNum);
+	YawIndex.reserve(_AngleNum);
 
 	ifstream fs;
 	for (int i = 0; i < 5; i++)
 	{
 		int j = 0;
 		Rect ROI;
+		float Angletemp;
 		char buffer[16];
 		float coordinate[4];
 		sprintf(buffer, "%d", i + 1);
@@ -48,7 +53,8 @@ void YawAngleEstimator::init(const string PicFilename,int _AngleNum = 5)
 			fs >> coordinate[j];
 			j++;
 		}
-		fs >> Angle[i];
+		fs >> Angletemp;
+		Angle.push_back(Angletemp);
 		fs.close();
 
 		ROI.x = coordinate[0];
@@ -86,6 +92,8 @@ void descriptImg(const vector<Mat>& ImgTmp, Feature2D* Detector, Feature2D* Extr
 void featureExtract(const vector<Mat>& ImgTmp, vector<vector<KeyPoint>>& kp, 
 					vector<Mat>& descriptors,FeatureType Feature)
 {
+	printf("YawAngleEstimator:featureExtract\n");
+
 	switch (Feature)
 	{
 	case USE_BRISK:
@@ -95,14 +103,15 @@ void featureExtract(const vector<Mat>& ImgTmp, vector<vector<KeyPoint>>& kp,
 		delete detector;
 	}
 	break;
-	case USE_SURF:
+	case USE_SIFT:
 	{
-		SURF* detector = new SURF(300);
-		SURF* extractor = new SURF();
+		SIFT* detector = new SIFT();
+		SIFT* extractor = new SIFT();
 		descriptImg(ImgTmp, detector, extractor, kp, descriptors);
 		delete detector;
 		delete extractor;
 	}
+	break;
 	case USE_ORB:
 	{
 		ORB* detector = new ORB();
@@ -118,26 +127,39 @@ void featureExtract(const vector<Mat>& ImgTmp, vector<vector<KeyPoint>>& kp,
 
 void YawAngleEstimator::train()
 {
-	vector<vector<KeyPoint>> kp;
-	vector<Mat> descriptors;
+	printf("YawAngleEstimator:train\n");
+	vector<vector<KeyPoint>> kp(AngleNum,vector<KeyPoint>());
+	vector<Mat> descriptors(AngleNum,Mat());
 	featureExtract(YawTemplate, kp, descriptors, Feature);
 
 	//build Index with Lsh and Hamming distance
 	for (int i = 0; i < AngleNum; i++)
-		YawIndex[i].build(descriptors[i], flann::LshIndexParams(12, 20, 2), cvflann::FLANN_DIST_HAMMING);
+	{
+		flann::Index tempIndex;
+		if (Feature == USE_SIFT)
+		{
+			tempIndex.build(descriptors, flann::KDTreeIndexParams(4), cvflann::FLANN_DIST_L2);
+		}
+		else
+		{
+			tempIndex.build(descriptors[i], flann::LshIndexParams(12, 20, 2), cvflann::FLANN_DIST_HAMMING);
+		}
+		YawIndex.push_back(tempIndex);
+	}
 }
 
-void YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
+bool YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
 {
+	printf("YawAngleEstimator:estimate\n");
+
 	Mat TempFrame = CurrentFrame.clone();
-	if (TempFrame.channels == 3)
+	if (TempFrame.channels() == 3)
 		cvtColor(TempFrame, TempFrame, CV_BGR2GRAY);
 
 	vector<Mat> MatchingImg(1, TempFrame);
-	vector<vector<KeyPoint>> CurrentKp;
-	vector<Mat> CurrentDescriptors;
+	vector<vector<KeyPoint>> CurrentKp(1, vector<KeyPoint>());
+	vector<Mat> CurrentDescriptors(1,Mat());
 	float* CurrentVote = new float[AngleNum];
-	int index;
 	float maxVote=0;
 	//Extract current feature
 	featureExtract(MatchingImg, CurrentKp, CurrentDescriptors, Feature);
@@ -148,10 +170,11 @@ void YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
 	for (int i = 0; i < AngleNum; i++)
 	{
 		CurrentVote[i] = 0;
+		cout << CurrentDescriptors[0] << endl;
 		YawIndex[i].knnSearch(CurrentDescriptors[0], matchIndex, matchDistance, 2,flann::SearchParams());
 		for (int j = 0; j < matchDistance.rows; j++)
 		{
-			if (matchDistance.at<float>[j][0] < 0.6*matchDistance.at<float>[j][0])
+			if (matchDistance.at<float>(j,0) < 0.6*matchDistance.at<float>(j,1))
 				++CurrentVote[i];
 		}
 	}
@@ -176,7 +199,14 @@ void YawAngleEstimator::Estimate(Mat& CurrentFrame,float& CurrentAngle)
 				}
 			}
 	}
-	CurrentAngle = Angle[AngleIndex];
+	if (AngleIndex == -1) 
+		return false;
+	else
+	{
+		CurrentAngle = Angle[AngleIndex];
+		printf("The max vote of angle is: %d\n", maxVote);
+		return true;
+	}
 }
 
 void YawAngleEstimator::release()

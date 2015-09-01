@@ -12,7 +12,7 @@ using namespace cv;
 enum FeatureType
 {
 	USE_BRISK    = 0,
-	USE_SURF     = 1,
+	USE_SIFT	 = 1,
 	USE_LANDMARK = 2,
 	USE_ORB      = 3
 };
@@ -33,7 +33,7 @@ public:
 	virtual void train();
 
 	//Estimate head pose from last few frames 
-	virtual void Estimate(Mat& CurrentFrame, float& CurrentAngle);
+	virtual bool Estimate(Mat& CurrentFrame, float& CurrentAngle);
 
 	//Release Memory Manually
 	virtual void release();
